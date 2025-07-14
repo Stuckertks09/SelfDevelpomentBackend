@@ -1,49 +1,42 @@
 import Session from '../models/Session.js';
 
-// Helper to detect guest
-const isGuest = (id) => typeof id === 'string' && id.startsWith('guest_');
+const isGuest = (id) => id?.startsWith('guest_');
 
-/**
- * GET or create the most recent active session by mode
- */
 export const getOrCreateSession = async (req, res) => {
-  const { mode } = req.body;
-  const userId = req.user.id || req.user.userId;
+  const { mode = 'Internal' } = req.body;
+  const userId = (req.user?.id || req.user?.userId)?.toString() || null;
 
   try {
-    let session = await Session.findOne({ userId, mode, isActive: true })
-      .sort({ updatedAt: -1 })
-      .populate({ path: 'messages', options: { sort: { timestamp: 1 } } });
+    let session;
 
-    if (!session) {
-      session = new Session({
-        userId,
-        mode,
-        title: `${mode} Session`,
-        messages: []
-      });
+    if (userId) {
+      // Logged-in user: find existing session
+      session = await Session.findOne({ userId, mode, isActive: true })
+        .sort({ updatedAt: -1 })
+        .populate({ path: 'messages', options: { sort: { timestamp: 1 } } });
+
+      if (!session) {
+        session = new Session({ userId, mode, title: `${mode} Session`, messages: [] });
+        await session.save();
+      }
+    } else {
+      // Guest user: always create new session (no userId)
+      session = new Session({ mode, title: `${mode} Session`, messages: [] });
       await session.save();
     }
 
     res.json(session);
   } catch (err) {
-    console.error('❌ Error fetching/creating session:', err);
-    res.status(500).json({ msg: 'Error fetching or creating session' });
+    console.error('❌ Error in getOrCreateSession:', err);
+    res.status(500).json({ msg: 'Error creating or fetching session' });
   }
 };
 
-/**
- * GET all sessions (optionally filtered by mode or activity)
- */
 export const getAllSessions = async (req, res) => {
-  const userId = req.user.id || req.user.userId;
+  const userId = (req.user?.id || req.user?.userId)?.toString();
+  if (isGuest(userId)) return res.status(403).json({ msg: 'Guests cannot access history' });
+
   const { mode, active } = req.query;
-
-  // Guests can’t access past sessions
-  if (isGuest(userId)) {
-    return res.status(403).json({ msg: 'Guests cannot access session history' });
-  }
-
   const query = { userId };
   if (mode) query.mode = mode;
   if (active === 'true') query.isActive = true;
@@ -53,55 +46,50 @@ export const getAllSessions = async (req, res) => {
     const sessions = await Session.find(query)
       .sort({ updatedAt: -1 })
       .populate({ path: 'messages', options: { sort: { timestamp: 1 } } });
-
     res.json(sessions);
   } catch (err) {
-    console.error('❌ Error fetching sessions:', err);
-    res.status(500).json({ msg: 'Error fetching sessions' });
+    console.error('❌ Error in getAllSessions:', err);
+    res.status(500).json({ msg: 'Failed to fetch sessions' });
   }
 };
 
-/**
- * GET a single session by ID
- */
 export const getSessionById = async (req, res) => {
-  const userId = req.user.id || req.user.userId;
+  const userId = (req.user?.id || req.user?.userId)?.toString();
+  const sessionId = req.params.id;
 
   try {
-    const session = await Session.findOne({
-      _id: req.params.id,
-      userId
-    }).populate({ path: 'messages', options: { sort: { timestamp: 1 } } });
+    const session = await Session.findById(sessionId).populate({
+      path: 'messages',
+      options: { sort: { timestamp: 1 } }
+    });
 
-    if (!session) return res.status(404).json({ msg: 'Session not found' });
+    if (!session || session.userId !== userId) {
+      return res.status(404).json({ msg: 'Session not found or access denied' });
+    }
 
     res.json(session);
   } catch (err) {
-    console.error('❌ Error retrieving session by ID:', err);
+    console.error('❌ Error in getSessionById:', err);
     res.status(500).json({ msg: 'Error retrieving session' });
   }
 };
 
-/**
- * Mark a session as inactive
- */
 export const endSession = async (req, res) => {
-  const userId = req.user.id || req.user.userId;
+  const userId = (req.user?.id || req.user?.userId)?.toString();
+  const sessionId = req.params.sessionId;
 
   try {
-    const session = await Session.findOne({
-      _id: req.params.sessionId,
-      userId
-    });
-
-    if (!session) return res.status(404).json({ msg: 'Session not found' });
+    const session = await Session.findById(sessionId);
+    if (!session || session.userId !== userId) {
+      return res.status(404).json({ msg: 'Session not found or access denied' });
+    }
 
     session.isActive = false;
     await session.save();
 
-    res.json({ msg: 'Session marked inactive' });
+    res.json({ msg: 'Session ended' });
   } catch (err) {
-    console.error('❌ Error ending session:', err);
-    res.status(500).json({ msg: 'Failed to end session' });
+    console.error('❌ Error in endSession:', err);
+    res.status(500).json({ msg: 'Error ending session' });
   }
 };

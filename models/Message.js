@@ -7,7 +7,7 @@ const messageSchema = new mongoose.Schema({
     required: true
   },
   userId: {
-    type: mongoose.Schema.Types.Mixed, // allows ObjectId or string (e.g. "guest_...")
+    type: String, // Unified string (ObjectId or guest_123)
     required: true
   },
   sender: {
@@ -15,19 +15,13 @@ const messageSchema = new mongoose.Schema({
     enum: ['user', 'bot'],
     required: true
   },
-  text: {
-    type: String,
-    required: true
-  },
+  text: { type: String, required: true },
   meta: {
-    emotion: { type: String },
-    resistanceType: { type: String },
-    patternTag: { type: String }
+    emotion: String,
+    resistanceType: String,
+    patternTag: String
   },
-  timestamp: {
-    type: Date,
-    default: Date.now
-  }
+  timestamp: { type: Date, default: Date.now }
 });
 
 export default mongoose.model('Message', messageSchema);

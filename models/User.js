@@ -17,4 +17,4 @@ const userSchema = new mongoose.Schema({
   personalitySnapshot: personalitySnapshotSchema // <-- here
 });
 
-export default mongoose.model('User', userSchema);
+export default mongoose.model('User', userSchema, 'users');

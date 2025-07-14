@@ -9,7 +9,7 @@ import {
 
 const router = express.Router();
 
-router.post('/', auth, getOrCreateSession); // Create or reuse session by mode
+router.post('/', getOrCreateSession); // Create or reuse session by mode
 router.get('/', auth, getAllSessions); // Get all sessions (optionally filtered)
 router.get('/:id', auth, getSessionById); // Get one session by ID
 router.post('/:sessionId/end', auth, endSession); // End a session
